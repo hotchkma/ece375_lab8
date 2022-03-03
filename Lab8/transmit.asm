@@ -37,7 +37,6 @@
 ;***********************************************************
 .org	$0000					; Beginning of IVs
 		rjmp 	INIT			; Reset interrupt
-
 .org	$0046					; End of Interrupt Vectors
 
 ;***********************************************************
@@ -45,12 +44,43 @@
 ;***********************************************************
 INIT:
 	;Stack Pointer (VERY IMPORTANT!!!!)
+		ldi XH, high(RAMEND)
+		ldi XL, low(RAMEND)
+		out SPH, XH
+		out	SPL, XL
 	;I/O Ports
+	;Initialize Port D for input (buttons)
+		ldi		mpr, $00		; Set Port D Data Direction Register
+		out		DDRD, mpr		; for input
+		ldi		mpr, $FF		; Initialize Port D Data Register
+		out		PORTD, mpr		; so all Port D inputs are Tri-State
 	;USART1
-		;Set baudrate at 2400bps
-		;Enable transmitter
-		;Set frame format: 8 data bits, 2 stop bits
+		; bit 1: double data rate
+		ldi mpr, 0b00000010
+		sts UCSR1A, mpr
 
+		; bit 7: disable recieve interrupt
+		; bit 6: enable transmit interrupt
+		; bit 5: enable data reg. empty interrupt
+		; bit 4: disable reciever
+		; bit 3: enable transmitter
+		; bit 2: character size bit 2 is 0 (8 = 011)
+		ldi mpr, 0b01101000
+		sts UCSR1B, mpr
+
+		; bit 6: asynchronous mode
+		; bit 5 & 4: parity disabled 
+		; bit 3: 2 stop bits
+		; bit 2 & 1: 8 data bits
+		ldi mpr, 0b00001110
+		sts UCSR1C, mpr
+
+		; set buad rate to 2400 - on double data rate, calculated value is 834 = $0342
+		ldi mpr, $03
+		sts UBRR1H, mpr
+		ldi mpr, $42
+		sts UBRR1L, mpr
+		
 	;Other
 
 ;***********************************************************
