@@ -2,7 +2,7 @@
 ;*
 ;*	This is the RECEIVE skeleton file for Lab 8 of ECE 375
 ;*
-;*	 Author: Matthew Hotchkiss, Michael <Last Name?>
+;*	 Author: Matthew Hotchkiss, Michael Burlachenko
 ;*	   Date: 2/24/2022
 ;*
 ;***********************************************************
@@ -131,7 +131,6 @@ INIT:
 
 	; Other
 		ldi motion, 0b01100000; set the bot forward by default
-	
 		ldi recCnt, $00 ; clear the recieved count
 		ldi freezeCnt, $00 ; clear the freeze counter
 
@@ -187,8 +186,8 @@ Respond:
 				mov motion, mpr		; put this into motion register
 				rcall ClearQ		; clear any outstanding signals
 				pop		mpr			; restore the contents of the program from the stack
-				out		SREG, mpr
-				pop		mpr
+				out		SREG, mpr	
+				pop		mpr			
 				ret
 
 FreezeAttack:	
