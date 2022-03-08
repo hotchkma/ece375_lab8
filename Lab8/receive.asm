@@ -30,7 +30,7 @@
 .equ	EngDirR = 5				; Right Engine Direction Bit
 .equ	EngDirL = 6				; Left Engine Direction Bit
 
-.equ	BotAddress = $1A
+.equ	BotAddress = $1A		; bot address is 1A
 
 ;/////////////////////////////////////////////////////////////
 ;These macros are the values to make the TekBot Move.g
@@ -122,12 +122,12 @@ INIT:
 
 	;External Interrupts
 		;Set the External Interrupt Mask
-		ldi mpr, 0b00000011		; enable the INT0:2
+		ldi mpr, 0b00000011		; enable the INT0:1
 		out EIMSK, mpr			; write to the mask
 		
 		;Set the Interrupt Sense Control to falling edge detection
-		ldi mpr, 0b00001010		; 10 -> falling edge 11 -> rising edge
-		sts EICRA, mpr			; for INT2:0
+		ldi mpr, 0b00001010		; 10 -> falling edge
+		sts EICRA, mpr			; for INT1:0
 
 	; Other
 		ldi motion, 0b01100000; set the bot forward by default
@@ -204,7 +204,7 @@ Freeze:
 				clr recCnt			; clear the reciever count - a freeze has interrupted us
 				inc freezeCnt		; increment the freeze count
 				ldi mpr, Halt		; halt while frozen
-				out	PORTB, mpr
+				out	PORTB, mpr		; write to the LEDs
 Forever:		cpi freezeCnt, 3	; is this the third freeze?
 				breq Forever		; loop forever if it is
 				rcall WaitT			; otherwise, wait 5 seconds (1 second times 5)
@@ -246,7 +246,7 @@ HandleRight:	;turns left for a second
 				ldi		waitcnt, WTime	; make sure the waitcnt has the wait time
 				rcall	WaitT		; wait for that time
 
-				rcall	ClearQ
+				rcall	ClearQ		; clear the interrupts queue
 
 				pop		mpr			; restore the contents of the program from the stack
 				out		SREG, mpr
