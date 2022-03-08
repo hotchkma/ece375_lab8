@@ -2,7 +2,7 @@
 ;*
 ;*	This is the TRANSMIT skeleton file for Lab 8 of ECE 375
 ;*
-;*	 Author: Matthew Hotchkiss, Michael <Last Name?>
+;*	 Author: Matthew Hotchkiss, Michael Burlachenko
 ;*	   Date: 2/24/2022
 ;*
 ;***********************************************************
@@ -13,7 +13,11 @@
 ;*	Internal Register Definitions and Constants
 ;***********************************************************
 .def	mpr = r16				; Multi-Purpose Register
-
+.def	data = r17
+.def	waitcnt = r23				; Wait Loop Counter
+.def	ilcnt = r24				; Inner Loop Counter
+.def	olcnt = r25				; Outer Loop Counter
+	
 .equ	EngEnR = 4				; Right Engine Enable Bit
 .equ	EngEnL = 7				; Left Engine Enable Bit
 .equ	EngDirR = 5				; Right Engine Direction Bit
@@ -26,7 +30,8 @@
 .equ	TurnR =   ($80|1<<(EngDirL-1))					;0b10100000 Turn Right Action Code
 .equ	TurnL =   ($80|1<<(EngDirR-1))					;0b10010000 Turn Left Action Code
 .equ	Halt =    ($80|1<<(EngEnR-1)|1<<(EngEnL-1))		;0b11001000 Halt Action Code
-
+.equ	FreezeCode = 0b11111000
+.equ	address = $1A
 ;***********************************************************
 ;*	Start of Code Segment
 ;***********************************************************
@@ -50,9 +55,9 @@ INIT:
 		out	SPL, XL
 	;I/O Ports
 	;Initialize Port D for input (buttons)
-		ldi		mpr, $00		; Set Port D Data Direction Register
+		ldi		mpr, 0b00001100		; Set Port D Data Direction Register
 		out		DDRD, mpr		; for input
-		ldi		mpr, $FF		; Initialize Port D Data Register
+		ldi		mpr, 0b11110011		; Initialize Port D Data Register
 		out		PORTD, mpr		; so all Port D inputs are Tri-State
 	;USART1
 		; bit 1: double data rate
@@ -80,6 +85,7 @@ INIT:
 		sts UBRR1H, mpr
 		ldi mpr, $42
 		sts UBRR1L, mpr
+		ldi	waitcnt, 1
 		
 	;Other
 
@@ -87,13 +93,129 @@ INIT:
 ;*	Main Program
 ;***********************************************************
 MAIN:
-	;TODO: ???
+		in		mpr, PIND
+		sbrs	mpr, PIND0
+		rcall	HitRight
+		sbrs	mpr, PIND1
+		rcall	HitLeft
+		sbrs	mpr, PIND4
+		rcall	HitForward
+		sbrs	mpr, PIND5
+		rcall	HitBack
+		sbrs	mpr, PIND6
+		rcall	Stop
+		sbrs	mpr, PIND7
+		rcall	Freeze
 		rjmp	MAIN
 
 ;***********************************************************
 ;*	Functions and Subroutines
 ;***********************************************************
+Transmit:
+		push	mpr
+		in		mpr, SREG
+		push	mpr
+		lds		mpr, UCSR1A
+		sbrs	mpr, UDRE1
+		rjmp	Transmit
+		sts		UDR1, data
+		pop		mpr
+		out		SREG, mpr
+		pop		mpr
+		ret
 
+		
+HitRight:
+		push	mpr
+		in		mpr, SREG
+		push	mpr
+		ldi		data, address
+		rcall	Transmit
+		rcall	WaitM
+		ldi		data, TurnR
+		rcall	Transmit
+		
+		pop		mpr
+		out		SREG, mpr
+		pop		mpr
+		ret
+HitLeft:
+		push	mpr
+		in		mpr, SREG
+		push	mpr
+		ldi		data, address
+		rcall	Transmit
+		rcall	WaitM
+		ldi		data, TurnL
+
+		rcall	Transmit
+		pop		mpr
+		out		SREG, mpr
+		pop		mpr
+		ret
+HitForward:
+		push	mpr
+		in		mpr, SREG
+		push	mpr
+		ldi		data, address
+		rcall	Transmit
+		rcall	WaitM
+		ldi		data, MovFwd
+		rcall	Transmit
+		pop		mpr
+		out		SREG, mpr
+		pop		mpr
+		ret
+HitBack:
+		ldi		data, address
+		rcall	Transmit
+		ldi		data, MovBck
+		rcall	WaitM
+		rcall	Transmit
+		pop		mpr
+		out		SREG, mpr
+		pop		mpr
+		ret
+Stop:
+		push	mpr
+		in		mpr, SREG
+		push	mpr
+		ldi		data, address
+		rcall	Transmit
+		ldi		data, Halt
+		rcall	WaitM
+		rcall	Transmit
+		pop		mpr
+		out		SREG, mpr
+		pop		mpr
+		ret
+Freeze:
+		push	mpr
+		in		mpr, SREG
+		push	mpr
+		ldi		data, FreezeCode
+		rcall	Transmit
+		pop		mpr
+		out		SREG, mpr
+		pop		mpr
+WaitM:
+		push	waitcnt			; Save wait register
+		push	ilcnt			; Save ilcnt register
+		push	olcnt			; Save olcnt register
+
+Loop:	ldi		olcnt, 224		; load olcnt register
+OLoop:	ldi		ilcnt, 237		; load ilcnt register
+ILoop:	dec		ilcnt			; decrement ilcnt
+		brne	ILoop			; Continue Inner Loop
+		dec		olcnt		; decrement olcnt
+		brne	OLoop			; Continue Outer Loop
+		dec		waitcnt		; Decrement wait 
+		brne	Loop			; Continue Wait loop	
+
+		pop		olcnt		; Restore olcnt register
+		pop		ilcnt		; Restore ilcnt register
+		pop		waitcnt		; Restore wait register
+		ret				; Return from subroutine
 ;***********************************************************
 ;*	Stored Program Data
 ;***********************************************************
