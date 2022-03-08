@@ -88,10 +88,10 @@ INIT:
 		out		PORTB, mpr		; so all Port B outputs are low
 
 		;Initialize Port D for input (buttons)
-		ldi		mpr, $00		; Set Port D Data Direction Register
-		out		DDRD, mpr		; for input
-		ldi		mpr, $FF		; Initialize Port D Data Register
-		out		PORTD, mpr		; so all Port D inputs are Tri-State
+		ldi		mpr, 0b00000000		; Set Port D Data Direction Register
+		out		DDRD, mpr			; for input
+		ldi		mpr, $FF			; Initialize Port D Data Register
+		out		PORTD, mpr			; so all Port D inputs are Tri-State
 
 	;USART1
 		; bit 1: double data rate
@@ -122,18 +122,18 @@ INIT:
 
 	;External Interrupts
 		;Set the External Interrupt Mask
-		ldi mpr, 0b00000011		; enable the INT0:1
+		ldi mpr, 0b00000011		; enable the INT0:2
 		out EIMSK, mpr			; write to the mask
 		
 		;Set the Interrupt Sense Control to falling edge detection
-		ldi mpr, 0b00001010		; 10 -> falling edge
-		sts EICRA, mpr			; for INT1:0
+		ldi mpr, 0b00001010		; 10 -> falling edge 11 -> rising edge
+		sts EICRA, mpr			; for INT2:0
 
 	; Other
 		ldi motion, 0b01100000; set the bot forward by default
 	
-		clr recCnt ; clear the recieved count
-		clr freezeCnt ; clear the freeze counter
+		ldi recCnt, $00 ; clear the recieved count
+		ldi freezeCnt, $00 ; clear the freeze counter
 
 	;Set global interrupt
 		sei
@@ -157,39 +157,55 @@ MAIN:
 ; scenarios.
 ;----------------------------------------------------------------
  HandleInput:	
+				push	mpr			; store the current program data on the stack
+				in		mpr, SREG
+				push	mpr
+
 				; read the incoming and check for special cases
 				lds mpr, UDR1		; read the signal recieved
 				cpi mpr, 0b01010101 ; is this a freeze attack
 				breq Freeze			; if so, then freeze!
-				cpi recCnt, 0		; have we already recieved 1 signal out of 2?
+				cpi recCnt, $00		; have we already recieved 1 signal out of 2?
 				brne Respond		; if so, jump to our response
 				
 				; if both other checks did not pass, then this is an address
 				cpi mpr, BotAddress	; is this my address?
 				brne Abort			; if not, ignore it
 				inc recCnt			; signal 1/2 recieved
+
 Abort:			rcall ClearQ		; clear EIMSK
-				reti
+				pop		mpr			; restore the contents of the program from the stack
+				out		SREG, mpr
+				pop		mpr
+				ret
 
 Respond:
-				clr recCnt			; clear the count so the next signal is considered not as action code
+				ldi recCnt, $00		; clear the count so the next signal is considered not as action code
 				cpi mpr, 0b11111000	; is this telling me to attack?
 				breq FreezeAttack	; then attack!
 				lsl mpr				; or convert this to something for LEDs
 				mov motion, mpr		; put this into motion register
 				rcall ClearQ		; clear any outstanding signals
-				reti
+				pop		mpr			; restore the contents of the program from the stack
+				out		SREG, mpr
+				pop		mpr
+				ret
 
 FreezeAttack:	
-				clr recCnt			; clear the count so the next signal is considered not as action code
-				ldi mpr, 0b01010101 ; send out a freeze attack
-				sts UDR1, mpr		; remember to write to the data register
-				rcall ClearQ		; clear the external interrupt queue
-				reti
+				clr		recCnt			; clear the count so the next signal is considered not as action code
+				ldi		mpr, 0b01010101 ; send out a freeze attack
+				sts		UDR1, mpr		; remember to write to the data register
+				rcall	ClearQ			; clear the external interrupt queue
+				pop		mpr				; restore the contents of the program from the stack
+				out		SREG, mpr
+				pop		mpr
+				ret
 
 Freeze:
 				clr recCnt			; clear the reciever count - a freeze has interrupted us
 				inc freezeCnt		; increment the freeze count
+				ldi mpr, Halt		; halt while frozen
+				out	PORTB, mpr
 Forever:		cpi freezeCnt, 3	; is this the third freeze?
 				breq Forever		; loop forever if it is
 				rcall WaitT			; otherwise, wait 5 seconds (1 second times 5)
@@ -198,14 +214,17 @@ Forever:		cpi freezeCnt, 3	; is this the third freeze?
 				rcall WaitT
 				rcall WaitT
 				rcall ClearQ		; clear the external interrupt queue
-				reti
+				pop		mpr			; restore the contents of the program from the stack
+				out		SREG, mpr
+				pop		mpr
+				ret
 
 ;----------------------------------------------------------------
 ; Func:	ClearQ
 ; Desc: ClearQ simply clears the external interrupt queue
 ;----------------------------------------------------------------
 ClearQ:
-				ldi		mpr, $FF	; clear the queue
+				ldi		mpr, 0b00000011	; clear the queue
 				out		EIFR, mpr
 				ret
 
@@ -228,8 +247,7 @@ HandleRight:	;turns left for a second
 				ldi		waitcnt, WTime	; make sure the waitcnt has the wait time
 				rcall	WaitT		; wait for that time
 
-				ldi		mpr, $FF	; clear the queue
-				out		EIFR, mpr
+				rcall	ClearQ
 
 				pop		mpr			; restore the contents of the program from the stack
 				out		SREG, mpr
@@ -257,8 +275,7 @@ HandleLeft:		;turn right for a second
 				ldi		waitcnt, WTime
 				rcall   WaitT
 
-				ldi		mpr, $FF
-				out		EIFR, mpr
+				rcall	ClearQ
 
 				pop		mpr
 				out		SREG, mpr
@@ -292,6 +309,7 @@ WaitT:
 		push	ilcnt			; Save ilcnt register
 		push	olcnt			; Save olcnt register
 
+		ldi		waitcnt, WTime
 Loop:	ldi		olcnt, 224		; load olcnt register
 OLoop:	ldi		ilcnt, 237		; load ilcnt register
 ILoop:	dec		ilcnt			; decrement ilcnt

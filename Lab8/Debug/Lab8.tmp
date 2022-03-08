@@ -1,18 +1,18 @@
 <ASSEMBLER_INFO>
  <VERSION>2.2.8</VERSION>
  <DEVICE>"ATmega128"</DEVICE>
- <WORKING_DIR>c:\users\matthew\Documents\Atmel Studio\7.0\Lab8\Lab8\Debug</WORKING_DIR>
+ <WORKING_DIR>C:\Users\Matthew\Documents\Atmel Studio\7.0\Lab8\Lab8\Debug</WORKING_DIR>
  <INCLUDE_PATH>
   <DIR>C:/Program Files (x86)\Atmel\Studio\7.0\Packs\atmel\ATmega_DFP\1.6.364\avrasm\inc</DIR>
   <DIR>C:\Program Files (x86)\Atmel\Studio\7.0\toolchain\avr8\avrassembler\Include</DIR>
   <DIR></DIR>
  </INCLUDE_PATH>
- <SOURCE_FILE>c:\users\matthew\Documents\Atmel Studio\7.0\Lab8\Lab8\transmit.asm</SOURCE_FILE>
+ <SOURCE_FILE>C:\Users\Matthew\Documents\Atmel Studio\7.0\Lab8\Lab8\receive.asm</SOURCE_FILE>
  <INCLUDED_FILES>
   <FILE>C:/Program Files (x86)\Atmel\Studio\7.0\Packs\atmel\ATmega_DFP\1.6.364\avrasm\inc\m128def.inc</FILE>
  </INCLUDED_FILES>
  <OBJECT_FILES>
-  <FILE>c:\users\matthew\Documents\Atmel Studio\7.0\Lab8\Lab8\Debug\Lab8.obj</FILE>
+  <FILE>C:\Users\Matthew\Documents\Atmel Studio\7.0\Lab8\Lab8\Debug\Lab8.obj</FILE>
  </OBJECT_FILES>
  <HEX_FILES>
   <FILE>Lab8.hex</FILE>
@@ -22,7 +22,21 @@
   <FILE>Lab8.lss</FILE>
  </OUTPUT_FILES>
  <LABELS>
-  <INIT><FILE>c:\users\matthew\Documents\Atmel Studio\7.0\Lab8\Lab8\transmit.asm</FILE><LINE>46</LINE></INIT>
-  <MAIN><FILE>c:\users\matthew\Documents\Atmel Studio\7.0\Lab8\Lab8\transmit.asm</FILE><LINE>59</LINE></MAIN>
+  <INIT><FILE>C:\Users\Matthew\Documents\Atmel Studio\7.0\Lab8\Lab8\receive.asm</FILE><LINE>76</LINE></INIT>
+  <HandleRight><FILE>C:\Users\Matthew\Documents\Atmel Studio\7.0\Lab8\Lab8\receive.asm</FILE><LINE>238</LINE></HandleRight>
+  <HandleLeft><FILE>C:\Users\Matthew\Documents\Atmel Studio\7.0\Lab8\Lab8\receive.asm</FILE><LINE>266</LINE></HandleLeft>
+  <HandleInput><FILE>C:\Users\Matthew\Documents\Atmel Studio\7.0\Lab8\Lab8\receive.asm</FILE><LINE>159</LINE></HandleInput>
+  <MAIN><FILE>C:\Users\Matthew\Documents\Atmel Studio\7.0\Lab8\Lab8\receive.asm</FILE><LINE>144</LINE></MAIN>
+  <Freeze><FILE>C:\Users\Matthew\Documents\Atmel Studio\7.0\Lab8\Lab8\receive.asm</FILE><LINE>204</LINE></Freeze>
+  <Respond><FILE>C:\Users\Matthew\Documents\Atmel Studio\7.0\Lab8\Lab8\receive.asm</FILE><LINE>182</LINE></Respond>
+  <Abort><FILE>C:\Users\Matthew\Documents\Atmel Studio\7.0\Lab8\Lab8\receive.asm</FILE><LINE>176</LINE></Abort>
+  <ClearQ><FILE>C:\Users\Matthew\Documents\Atmel Studio\7.0\Lab8\Lab8\receive.asm</FILE><LINE>226</LINE></ClearQ>
+  <FreezeAttack><FILE>C:\Users\Matthew\Documents\Atmel Studio\7.0\Lab8\Lab8\receive.asm</FILE><LINE>194</LINE></FreezeAttack>
+  <Forever><FILE>C:\Users\Matthew\Documents\Atmel Studio\7.0\Lab8\Lab8\receive.asm</FILE><LINE>209</LINE></Forever>
+  <WaitT><FILE>C:\Users\Matthew\Documents\Atmel Studio\7.0\Lab8\Lab8\receive.asm</FILE><LINE>307</LINE></WaitT>
+  <MoveBack><FILE>C:\Users\Matthew\Documents\Atmel Studio\7.0\Lab8\Lab8\receive.asm</FILE><LINE>292</LINE></MoveBack>
+  <Loop><FILE>C:\Users\Matthew\Documents\Atmel Studio\7.0\Lab8\Lab8\receive.asm</FILE><LINE>313</LINE></Loop>
+  <OLoop><FILE>C:\Users\Matthew\Documents\Atmel Studio\7.0\Lab8\Lab8\receive.asm</FILE><LINE>314</LINE></OLoop>
+  <ILoop><FILE>C:\Users\Matthew\Documents\Atmel Studio\7.0\Lab8\Lab8\receive.asm</FILE><LINE>315</LINE></ILoop>
  </LABELS>
 </ASSEMBLER_INFO>

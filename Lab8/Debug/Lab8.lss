@@ -1,10 +1,10 @@
 
-AVRASM ver. 2.2.8  c:\users\matthew\Documents\Atmel Studio\7.0\Lab8\Lab8\transmit.asm Thu Feb 24 10:41:54 2022
+AVRASM ver. 2.2.8  C:\Users\Matthew\Documents\Atmel Studio\7.0\Lab8\Lab8\receive.asm Mon Mar 07 19:17:33 2022
 
 [builtin](2): Including file 'C:/Program Files (x86)\Atmel\Studio\7.0\Packs\atmel\ATmega_DFP\1.6.364\avrasm\inc\m128def.inc'
-c:\users\matthew\Documents\Atmel Studio\7.0\Lab8\Lab8\transmit.asm(10): Including file 'C:/Program Files (x86)\Atmel\Studio\7.0\Packs\atmel\ATmega_DFP\1.6.364\avrasm\inc\m128def.inc'
+C:\Users\Matthew\Documents\Atmel Studio\7.0\Lab8\Lab8\receive.asm(10): Including file 'C:/Program Files (x86)\Atmel\Studio\7.0\Packs\atmel\ATmega_DFP\1.6.364\avrasm\inc\m128def.inc'
 [builtin](2): Including file 'C:/Program Files (x86)\Atmel\Studio\7.0\Packs\atmel\ATmega_DFP\1.6.364\avrasm\inc\m128def.inc'
-c:\users\matthew\Documents\Atmel Studio\7.0\Lab8\Lab8\transmit.asm(10): Including file 'C:/Program Files (x86)\Atmel\Studio\7.0\Packs\atmel\ATmega_DFP\1.6.364\avrasm\inc\m128def.inc'
+C:\Users\Matthew\Documents\Atmel Studio\7.0\Lab8\Lab8\receive.asm(10): Including file 'C:/Program Files (x86)\Atmel\Studio\7.0\Packs\atmel\ATmega_DFP\1.6.364\avrasm\inc\m128def.inc'
                                  
                                  ;***********************************************************
                                  
@@ -1226,7 +1226,7 @@ c:\users\matthew\Documents\Atmel Studio\7.0\Lab8\Lab8\transmit.asm(10): Includin
                                  ; ***** END OF FILE ******************************************************
                                  
                                  ;*
-                                 ;*	This is the TRANSMIT skeleton file for Lab 8 of ECE 375
+                                 ;*	This is the RECEIVE skeleton file for Lab 8 of ECE 375
                                  ;*
                                  ;*	 Author: Matthew Hotchkiss, Michael <Last Name?>
                                  ;*	   Date: 2/24/2022
@@ -1282,19 +1282,33 @@ c:\users\matthew\Documents\Atmel Studio\7.0\Lab8\Lab8\transmit.asm(10): Includin
                                  ;*	Internal Register Definitions and Constants
                                  ;***********************************************************
                                  .def	mpr = r16				; Multi-Purpose Register
+                                 .def	motion = r17			; stores motion state (from controller)
+                                 .def	recCnt = r18			; stores number of transmission recieved
+                                 .def	freezeCnt = r19 		; stores number of times frozen
                                  
+                                 .def	waitcnt = r23			; stores the amount of time to be waited in cs
+                                 .def	ilcnt = r24				; inner loop count for waiting
+                                 .def	olcnt = r25				; outer loop count for waiting
+                                 
+                                 .equ	WTime = 100				; Time to wait in wait loop
+                                 
+                                 .equ	WskrR = 0				; Right Whisker Input Bit
+                                 .equ	WskrL = 1				; Left Whisker Input Bit
                                  .equ	EngEnR = 4				; Right Engine Enable Bit
                                  .equ	EngEnL = 7				; Left Engine Enable Bit
                                  .equ	EngDirR = 5				; Right Engine Direction Bit
                                  .equ	EngDirL = 6				; Left Engine Direction Bit
-                                 ; Use these action codes between the remote and robot
-                                 ; MSB = 1 thus:
-                                 ; control signals are shifted right by one and ORed with 0b10000000 = $80
-                                 .equ	MovFwd =  ($80|1<<(EngDirR-1)|1<<(EngDirL-1))	;0b10110000 Move Forward Action Code
-                                 .equ	MovBck =  ($80|$00)								;0b10000000 Move Backward Action Code
-                                 .equ	TurnR =   ($80|1<<(EngDirL-1))					;0b10100000 Turn Right Action Code
-                                 .equ	TurnL =   ($80|1<<(EngDirR-1))					;0b10010000 Turn Left Action Code
-                                 .equ	Halt =    ($80|1<<(EngEnR-1)|1<<(EngEnL-1))		;0b11001000 Halt Action Code
+                                 
+                                 .equ	BotAddress = $1A
+                                 
+                                 ;/////////////////////////////////////////////////////////////
+                                 ;These macros are the values to make the TekBot Move.g
+                                 ;/////////////////////////////////////////////////////////////
+                                 .equ	MovFwd =  (1<<EngDirR|1<<EngDirL)	;0b01100000 Move Forward Action Code
+                                 .equ	MovBck =  $00						;0b00000000 Move Backward Action Code
+                                 .equ	TurnR =   (1<<EngDirL)				;0b01000000 Turn Right Action Code
+                                 .equ	TurnL =   (1<<EngDirR)				;0b00100000 Turn Left Action Code
+                                 .equ	Halt =    (1<<EngEnR|1<<EngEnL)		;0b10010000 Halt Action Code
                                  
                                  ;***********************************************************
                                  ;*	Start of Code Segment
@@ -1307,31 +1321,278 @@ c:\users\matthew\Documents\Atmel Studio\7.0\Lab8\Lab8\transmit.asm(10): Includin
                                  .org	$0000					; Beginning of IVs
 000000 c045                      		rjmp 	INIT			; Reset interrupt
                                  
+                                 ;Should have Interrupt vectors for:
+                                 ;- Left whisker
+                                 .org	$0002
+000002 d0a0                      		rcall HandleRight
+000003 9518                      		reti
+                                 
+                                 ;- Right whisker
+                                 .org	$0004
+000004 d0ad                      		rcall HandleLeft
+000005 9518                      		reti
+                                 
+                                 ;- USART receive
+                                 .org	$003C
+00003c d02f                      		rcall HandleInput
+00003d 9518                      		reti
+                                 
                                  .org	$0046					; End of Interrupt Vectors
                                  
                                  ;***********************************************************
                                  ;*	Program Initialization
                                  ;***********************************************************
                                  INIT:
-                                 	;Stack Pointer (VERY IMPORTANT!!!!)
-                                 	;I/O Ports
-                                 	;USART1
-                                 		;Set baudrate at 2400bps
-                                 		;Enable transmitter
-                                 		;Set frame format: 8 data bits, 2 stop bits
+                                 	;Initialize the Stack Pointer
+000046 e1b0                      		ldi XH, high(RAMEND)
+000047 efaf                      		ldi XL, low(RAMEND)
+000048 bfbe                      		out SPH, XH
+000049 bfad                      		out	SPL, XL
                                  
-                                 	;Other
+                                 	;I/O Ports
+                                 		; Initialize Port B for output (LEDs)
+00004a ef0f                      		ldi		mpr, $FF		; Set Port B Data Direction Register
+00004b bb07                      		out		DDRB, mpr		; for output
+00004c e000                      		ldi		mpr, $00		; Initialize Port B Data Register
+00004d bb08                      		out		PORTB, mpr		; so all Port B outputs are low
+                                 
+                                 		;Initialize Port D for input (buttons)
+00004e e000                      		ldi		mpr, 0b00000000		; Set Port D Data Direction Register
+00004f bb01                      		out		DDRD, mpr			; for input
+000050 ef0f                      		ldi		mpr, $FF			; Initialize Port D Data Register
+000051 bb02                      		out		PORTD, mpr			; so all Port D inputs are Tri-State
+                                 
+                                 	;USART1
+                                 		; bit 1: double data rate
+000052 e002                      		ldi mpr, 0b00000010
+000053 9300 009b                 		sts UCSR1A, mpr		; extended I/O
+                                 
+                                 		; bit 7: enable recieve interrupt
+                                 		; bit 6: disable transmit interrupt
+                                 		; bit 5: disable data reg. empty interrupt
+                                 		; bit 4: enable reciever
+                                 		; bit 3: enable transmitter
+                                 		; bit 2: character size bit 2 is 0 (8 = 011)
+000055 e908                      		ldi mpr, 0b10011000
+000056 9300 009a                 		sts UCSR1B, mpr		; extended I/O
+                                 
+                                 		; bit 6: asynchronous mode
+                                 		; bit 5 & 4: parity disabled 
+                                 		; bit 3: 2 stop bits
+                                 		; bit 2 & 1: 8 data bits
+000058 e00e                      		ldi mpr, 0b00001110
+000059 9300 009d                 		sts UCSR1C, mpr		; extended I/O
+                                 
+                                 		; set buad rate to 2400 - on double data rate, calculated value is 834 = $0342
+00005b e003                      		ldi mpr, $03		; low byte
+00005c 9300 0098                 		sts UBRR1H, mpr		; extended I/O
+00005e e402                      		ldi mpr, $42		; high byte
+00005f 9300 0099                 		sts UBRR1L, mpr		; extended I/O
+                                 
+                                 	;External Interrupts
+                                 		;Set the External Interrupt Mask
+000061 e003                      		ldi mpr, 0b00000011		; enable the INT0:2
+000062 bf09                      		out EIMSK, mpr			; write to the mask
+                                 		
+                                 		;Set the Interrupt Sense Control to falling edge detection
+000063 e00a                      		ldi mpr, 0b00001010		; 10 -> falling edge 11 -> rising edge
+000064 9300 006a                 		sts EICRA, mpr			; for INT2:0
+                                 
+                                 	; Other
+000066 e610                      		ldi motion, 0b01100000; set the bot forward by default
+                                 	
+000067 e020                      		ldi recCnt, $00 ; clear the recieved count
+000068 e030                      		ldi freezeCnt, $00 ; clear the freeze counter
+                                 
+                                 	;Set global interrupt
+000069 9478                      		sei
                                  
                                  ;***********************************************************
                                  ;*	Main Program
                                  ;***********************************************************
                                  MAIN:
-                                 	;TODO: ???
-000046 cfff                      		rjmp	MAIN
+00006a bb18                      		out		PORTB, motion	; write to output ports
+00006b cffe                      		rjmp	MAIN			; loop
                                  
                                  ;***********************************************************
                                  ;*	Functions and Subroutines
                                  ;***********************************************************
+                                 ;----------------------------------------------------------------
+                                 ; Func:	HandleInput
+                                 ; Desc:	HandleInput handles USART recieve signals. The ISR 
+                                 ; depends on the particular inputs, as well as the state of the 
+                                 ; bot. It might check the address sent, or the action code. Or, it
+                                 ; might detect an incoming freeze attack. It responds to all the
+                                 ; scenarios.
+                                 ;----------------------------------------------------------------
+                                  HandleInput:	
+00006c 930f                      				push	mpr			; store the current program data on the stack
+00006d b70f                      				in		mpr, SREG
+00006e 930f                      				push	mpr
+                                 
+                                 				; read the incoming and check for special cases
+00006f 9100 009c                 				lds mpr, UDR1		; read the signal recieved
+000071 3505                      				cpi mpr, 0b01010101 ; is this a freeze attack
+000072 f0e9                      				breq Freeze			; if so, then freeze!
+000073 3020                      				cpi recCnt, $00		; have we already recieved 1 signal out of 2?
+000074 f441                      				brne Respond		; if so, jump to our response
+                                 				
+                                 				; if both other checks did not pass, then this is an address
+000075 310a                      				cpi mpr, BotAddress	; is this my address?
+000076 f409                      				brne Abort			; if not, ignore it
+000077 9523                      				inc recCnt			; signal 1/2 recieved
+                                 
+000078 d027                      Abort:			rcall ClearQ		; clear EIMSK
+000079 910f                      				pop		mpr			; restore the contents of the program from the stack
+00007a bf0f                      				out		SREG, mpr
+00007b 910f                      				pop		mpr
+00007c 9508                      				ret
+                                 
+                                 Respond:
+00007d e020                      				ldi recCnt, $00		; clear the count so the next signal is considered not as action code
+00007e 3f08                      				cpi mpr, 0b11111000	; is this telling me to attack?
+00007f f039                      				breq FreezeAttack	; then attack!
+000080 0f00                      				lsl mpr				; or convert this to something for LEDs
+000081 2f10                      				mov motion, mpr		; put this into motion register
+000082 d01d                      				rcall ClearQ		; clear any outstanding signals
+000083 910f                      				pop		mpr			; restore the contents of the program from the stack
+000084 bf0f                      				out		SREG, mpr
+000085 910f                      				pop		mpr
+000086 9508                      				ret
+                                 
+                                 FreezeAttack:	
+000087 2722                      				clr		recCnt			; clear the count so the next signal is considered not as action code
+000088 e505                      				ldi		mpr, 0b01010101 ; send out a freeze attack
+000089 9300 009c                 				sts		UDR1, mpr		; remember to write to the data register
+00008b d014                      				rcall	ClearQ			; clear the external interrupt queue
+00008c 910f                      				pop		mpr				; restore the contents of the program from the stack
+00008d bf0f                      				out		SREG, mpr
+00008e 910f                      				pop		mpr
+00008f 9508                      				ret
+                                 
+                                 Freeze:
+000090 2722                      				clr recCnt			; clear the reciever count - a freeze has interrupted us
+000091 9533                      				inc freezeCnt		; increment the freeze count
+000092 e900                      				ldi mpr, Halt		; halt while frozen
+000093 bb08                      				out	PORTB, mpr
+000094 3033                      Forever:		cpi freezeCnt, 3	; is this the third freeze?
+000095 f3f1                      				breq Forever		; loop forever if it is
+000096 d02f                      				rcall WaitT			; otherwise, wait 5 seconds (1 second times 5)
+000097 d02e                      				rcall WaitT
+000098 d02d                      				rcall WaitT
+000099 d02c                      				rcall WaitT
+00009a d02b                      				rcall WaitT
+00009b d004                      				rcall ClearQ		; clear the external interrupt queue
+00009c 910f                      				pop		mpr			; restore the contents of the program from the stack
+00009d bf0f                      				out		SREG, mpr
+00009e 910f                      				pop		mpr
+00009f 9508                      				ret
+                                 
+                                 ;----------------------------------------------------------------
+                                 ; Func:	ClearQ
+                                 ; Desc: ClearQ simply clears the external interrupt queue
+                                 ;----------------------------------------------------------------
+                                 ClearQ:
+0000a0 e003                      				ldi		mpr, 0b00000011	; clear the queue
+0000a1 bf08                      				out		EIFR, mpr
+0000a2 9508                      				ret
+                                 
+                                 ;----------------------------------------------------------------
+                                 ; Func:	HandleRight
+                                 ; Desc:	HandleRight handles a right whisker trigger. This function
+                                 ;		carries out the bump bot behavior to represent a response to the
+                                 ;		trigger. So, it adds to the trigger count, reverses, then turns left
+                                 ;		then returns to the main function in which it continues walking forward
+                                 ;----------------------------------------------------------------
+                                 HandleRight:	;turns left for a second
+0000a3 930f                      				push	mpr			; store the current program data on the stack
+0000a4 937f                      				push	waitcnt
+0000a5 b70f                      				in		mpr, SREG
+0000a6 930f                      				push	mpr
+                                 
+0000a7 d019                      				rcall	MoveBack	; move backwards first
+0000a8 e200                      				ldi		mpr, TurnL	; load our turn left bits
+0000a9 bb08                      				out		PORTB, mpr	; write to the output PORTB
+0000aa e674                      				ldi		waitcnt, WTime	; make sure the waitcnt has the wait time
+0000ab d01a                      				rcall	WaitT		; wait for that time
+                                 
+0000ac dff3                      				rcall	ClearQ
+                                 
+0000ad 910f                      				pop		mpr			; restore the contents of the program from the stack
+0000ae bf0f                      				out		SREG, mpr
+0000af 917f                      				pop		waitcnt
+0000b0 910f                      				pop		mpr
+                                 
+0000b1 9508                      				ret					; return
+                                 
+                                 ;----------------------------------------------------------------
+                                 ; Func:	HandleLeft
+                                 ; Desc:	HandleLeft handles a left whisker trigger. This function
+                                 ;		carries out the bump bot behavior to represent a response to the
+                                 ;		trigger. So, it adds to the trigger count, reverses, then turns right
+                                 ;		then returns to the main function in which it continues walking forward
+                                 ;----------------------------------------------------------------
+                                 HandleLeft:		;turn right for a second
+0000b2 930f                      				push	mpr			; everything in HandleLeft mirrors HandleRight, except of course we turn right instead of turning left and increment our left counter instead of our right counter
+0000b3 937f                      				push	waitcnt		; thus, refer to the HandleRight function for comments to avoid redundancy
+0000b4 b70f                      				in		mpr, SREG
+0000b5 930f                      				push	mpr
+                                 
+0000b6 d00a                      				rcall	MoveBack
+0000b7 e400                      				ldi		mpr, TurnR
+0000b8 bb08                      				out		PORTB, mpr
+0000b9 e674                      				ldi		waitcnt, WTime
+0000ba d00b                      				rcall   WaitT
+                                 
+0000bb dfe4                      				rcall	ClearQ
+                                 
+0000bc 910f                      				pop		mpr
+0000bd bf0f                      				out		SREG, mpr
+0000be 917f                      				pop		Waitcnt
+0000bf 910f                      				pop		mpr
+                                 
+0000c0 9508                      				ret
+                                 
+                                 ;----------------------------------------------------------------
+                                 ; Func:	MoveBack
+                                 ; Desc:	MoveBack serves as a helper to the HandleLeft and HandleRight functions
+                                 ;		It simply causes the bumpbot to mov backwards for the time WTime
+                                 ;----------------------------------------------------------------
+                                 MoveBack:		;Move backwards for a second
+0000c1 e000                      				ldi		mpr, MovBck		; load the move backwards bits
+0000c2 bb08                      				out		PORTB, mpr		; write them to the output PORTB
+0000c3 e674                      				ldi		Waitcnt, WTime	; make sure the wait time is loaded into the wait count
+0000c4 d001                      				rcall	WaitT			; wait for that amount of time
+0000c5 9508                      				ret						; return
+                                 
+                                 ;----------------------------------------------------------------
+                                 ; Sub:	WaitT
+                                 ; Desc:	A WaitT loop that is 16 + 159975*WaitTcnt cycles or roughly 
+                                 ;		WaitTcnt*10ms.  Just initialize WaitT for the specific amount 
+                                 ;		of time in 10ms intervals. Here is the general eqaution
+                                 ;		for the number of clock cycles in the wait loop:
+                                 ;			((3 * ilcnt + 3) * olcnt + 3) * waitcnt + 13 + call
+                                 ;----------------------------------------------------------------
+                                 WaitT:
+0000c6 937f                      		push	waitcnt			; Save wait register
+0000c7 938f                      		push	ilcnt			; Save ilcnt register
+0000c8 939f                      		push	olcnt			; Save olcnt register
+                                 
+0000c9 e674                      		ldi		waitcnt, WTime
+0000ca ee90                      Loop:	ldi		olcnt, 224		; load olcnt register
+0000cb ee8d                      OLoop:	ldi		ilcnt, 237		; load ilcnt register
+0000cc 958a                      ILoop:	dec		ilcnt			; decrement ilcnt
+0000cd f7f1                      		brne	ILoop			; Continue Inner Loop
+0000ce 959a                      		dec		olcnt			; decrement olcnt
+0000cf f7d9                      		brne	OLoop			; Continue Outer Loop
+0000d0 957a                      		dec		waitcnt			; Decrement wait 
+0000d1 f7c1                      		brne	Loop			; Continue Wait loop	
+                                 
+0000d2 919f                      		pop		olcnt		; Restore olcnt register
+0000d3 918f                      		pop		ilcnt		; Restore ilcnt register
+0000d4 917f                      		pop		waitcnt		; Restore wait register
+0000d5 9508                      		ret					; Return from subroutine
+                                 
                                  
                                  ;***********************************************************
                                  ;*	Stored Program Data
@@ -1358,38 +1619,38 @@ counted separately from r26..r31 here.
 "ATmega128" register use summary:
 x  :   0 y  :   0 z  :   0 r0 :   0 r1 :   0 r2 :   0 r3 :   0 r4 :   0 
 r5 :   0 r6 :   0 r7 :   0 r8 :   0 r9 :   0 r10:   0 r11:   0 r12:   0 
-r13:   0 r14:   0 r15:   0 r16:   0 r17:   0 r18:   0 r19:   0 r20:   0 
-r21:   0 r22:   0 r23:   0 r24:   0 r25:   0 r26:   0 r27:   0 r28:   0 
+r13:   0 r14:   0 r15:   0 r16:  67 r17:   3 r18:   6 r19:   3 r20:   0 
+r21:   0 r22:   0 r23:  11 r24:   4 r25:   4 r26:   2 r27:   2 r28:   0 
 r29:   0 r30:   0 r31:   0 
-Registers used: 0 out of 35 (0.0%)
+Registers used: 9 out of 35 (25.7%)
 
 "ATmega128" instruction use summary:
 .lds  :   0 .sts  :   0 adc   :   0 add   :   0 adiw  :   0 and   :   0 
 andi  :   0 asr   :   0 bclr  :   0 bld   :   0 brbc  :   0 brbs  :   0 
-brcc  :   0 brcs  :   0 break :   0 breq  :   0 brge  :   0 brhc  :   0 
+brcc  :   0 brcs  :   0 break :   0 breq  :   3 brge  :   0 brhc  :   0 
 brhs  :   0 brid  :   0 brie  :   0 brlo  :   0 brlt  :   0 brmi  :   0 
-brne  :   0 brpl  :   0 brsh  :   0 brtc  :   0 brts  :   0 brvc  :   0 
+brne  :   5 brpl  :   0 brsh  :   0 brtc  :   0 brts  :   0 brvc  :   0 
 brvs  :   0 bset  :   0 bst   :   0 call  :   0 cbi   :   0 cbr   :   0 
-clc   :   0 clh   :   0 cli   :   0 cln   :   0 clr   :   0 cls   :   0 
+clc   :   0 clh   :   0 cli   :   0 cln   :   0 clr   :   2 cls   :   0 
 clt   :   0 clv   :   0 clz   :   0 com   :   0 cp    :   0 cpc   :   0 
-cpi   :   0 cpse  :   0 dec   :   0 elpm  :   0 eor   :   0 fmul  :   0 
-fmuls :   0 fmulsu:   0 icall :   0 ijmp  :   0 in    :   0 inc   :   0 
-jmp   :   0 ld    :   0 ldd   :   0 ldi   :   0 lds   :   0 lpm   :   0 
-lsl   :   0 lsr   :   0 mov   :   0 movw  :   0 mul   :   0 muls  :   0 
-mulsu :   0 neg   :   0 nop   :   0 or    :   0 ori   :   0 out   :   0 
-pop   :   0 push  :   0 rcall :   0 ret   :   0 reti  :   0 rjmp  :   2 
+cpi   :   5 cpse  :   0 dec   :   3 elpm  :   0 eor   :   0 fmul  :   0 
+fmuls :   0 fmulsu:   0 icall :   0 ijmp  :   0 in    :   3 inc   :   2 
+jmp   :   0 ld    :   0 ldd   :   0 ldi   :  29 lds   :   1 lpm   :   0 
+lsl   :   1 lsr   :   0 mov   :   1 movw  :   0 mul   :   0 muls  :   0 
+mulsu :   0 neg   :   0 nop   :   0 or    :   0 ori   :   0 out   :  19 
+pop   :  17 push  :  11 rcall :  19 ret   :   9 reti  :   3 rjmp  :   2 
 rol   :   0 ror   :   0 sbc   :   0 sbci  :   0 sbi   :   0 sbic  :   0 
 sbis  :   0 sbiw  :   0 sbr   :   0 sbrc  :   0 sbrs  :   0 sec   :   0 
-seh   :   0 sei   :   0 sen   :   0 ser   :   0 ses   :   0 set   :   0 
+seh   :   0 sei   :   1 sen   :   0 ser   :   0 ses   :   0 set   :   0 
 sev   :   0 sez   :   0 sleep :   0 spm   :   0 st    :   0 std   :   0 
-sts   :   0 sub   :   0 subi  :   0 swap  :   0 tst   :   0 wdr   :   0 
+sts   :   7 sub   :   0 subi  :   0 swap  :   0 tst   :   0 wdr   :   0 
 
-Instructions used: 1 out of 114 (0.9%)
+Instructions used: 20 out of 114 (17.5%)
 
 "ATmega128" memory use summary [bytes]:
 Segment   Begin    End      Code   Data   Used    Size   Use%
 ---------------------------------------------------------------
-[.cseg] 0x000000 0x00008e      4      0      4  131072   0.0%
+[.cseg] 0x000000 0x0001ac    302      0    302  131072   0.2%
 [.dseg] 0x000100 0x000100      0      0      0    4096   0.0%
 [.eseg] 0x000000 0x000000      0      0      0    4096   0.0%
 
