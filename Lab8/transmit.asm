@@ -14,6 +14,10 @@
 ;***********************************************************
 .def	mpr = r16				; Multi-Purpose Register
 .def	data = r17
+.def	waitcnt = r23				; Wait Loop Counter
+.def	ilcnt = r24				; Inner Loop Counter
+.def	olcnt = r25				; Outer Loop Counter
+	
 .equ	EngEnR = 4				; Right Engine Enable Bit
 .equ	EngEnL = 7				; Left Engine Enable Bit
 .equ	EngDirR = 5				; Right Engine Direction Bit
@@ -81,6 +85,7 @@ INIT:
 		sts UBRR1H, mpr
 		ldi mpr, $42
 		sts UBRR1L, mpr
+		ldi	waitcnt, 1
 		
 	;Other
 
@@ -118,14 +123,18 @@ Transmit:
 		out		SREG, mpr
 		pop		mpr
 		ret
+
+		
 HitRight:
 		push	mpr
 		in		mpr, SREG
 		push	mpr
 		ldi		data, address
 		rcall	Transmit
+		rcall	WaitM
 		ldi		data, TurnR
 		rcall	Transmit
+		
 		pop		mpr
 		out		SREG, mpr
 		pop		mpr
@@ -134,10 +143,11 @@ HitLeft:
 		push	mpr
 		in		mpr, SREG
 		push	mpr
-
 		ldi		data, address
 		rcall	Transmit
+		rcall	WaitM
 		ldi		data, TurnL
+
 		rcall	Transmit
 		pop		mpr
 		out		SREG, mpr
@@ -149,6 +159,7 @@ HitForward:
 		push	mpr
 		ldi		data, address
 		rcall	Transmit
+		rcall	WaitM
 		ldi		data, MovFwd
 		rcall	Transmit
 		pop		mpr
@@ -159,6 +170,7 @@ HitBack:
 		ldi		data, address
 		rcall	Transmit
 		ldi		data, MovBck
+		rcall	WaitM
 		rcall	Transmit
 		pop		mpr
 		out		SREG, mpr
@@ -171,6 +183,7 @@ Stop:
 		ldi		data, address
 		rcall	Transmit
 		ldi		data, Halt
+		rcall	WaitM
 		rcall	Transmit
 		pop		mpr
 		out		SREG, mpr
@@ -185,6 +198,24 @@ Freeze:
 		pop		mpr
 		out		SREG, mpr
 		pop		mpr
+WaitM:
+		push	waitcnt			; Save wait register
+		push	ilcnt			; Save ilcnt register
+		push	olcnt			; Save olcnt register
+
+Loop:	ldi		olcnt, 224		; load olcnt register
+OLoop:	ldi		ilcnt, 237		; load ilcnt register
+ILoop:	dec		ilcnt			; decrement ilcnt
+		brne	ILoop			; Continue Inner Loop
+		dec		olcnt		; decrement olcnt
+		brne	OLoop			; Continue Outer Loop
+		dec		waitcnt		; Decrement wait 
+		brne	Loop			; Continue Wait loop	
+
+		pop		olcnt		; Restore olcnt register
+		pop		ilcnt		; Restore ilcnt register
+		pop		waitcnt		; Restore wait register
+		ret				; Return from subroutine
 ;***********************************************************
 ;*	Stored Program Data
 ;***********************************************************
