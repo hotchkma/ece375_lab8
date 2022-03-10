@@ -30,7 +30,7 @@
 .equ	TurnR =   ($80|1<<(EngDirL-1))					;0b10100000 Turn Right Action Code
 .equ	TurnL =   ($80|1<<(EngDirR-1))					;0b10010000 Turn Left Action Code
 .equ	Halt =    ($80|1<<(EngEnR-1)|1<<(EngEnL-1))		;0b11001000 Halt Action Code
-.equ	FreezeCode = 0b01010101	;Freeze code
+.equ	FreezeCode = 0b11111000	;Freeze code
 .equ	address = $1A	;Bot address
 ;***********************************************************
 ;*	Start of Code Segment
@@ -191,17 +191,17 @@ Stop:
 		pop		mpr
 		ret
 Freeze:
-		push	waitcnt
+		push	mpr
 		in		mpr, SREG
 		push	mpr
-		ldi		data, FreezeCode	;load freeze action code to data register
-		rcall	Transmit	;transmit data
-		ldi		waitcnt, 100	;wait 1 sec
+		ldi		data, address ;load address to data register
+		rcall	Transmit	;transmit address
 		rcall   WaitM	;wait 1 sec to prevent sending multiple freeze action codes 
+		ldi		data, FreezeCode	;load freeze action code to data register
+		rcall  Transmit ;transmit data
 		pop		mpr
 		out		SREG, mpr
 		pop		mpr
-		pop		waitcnt
 WaitM:
 		push	waitcnt			; Save wait register
 		push	ilcnt			; Save ilcnt register
